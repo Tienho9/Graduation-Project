@@ -13,7 +13,6 @@ def is_safe_diagonal(grid, current, neighbor):
     x, y = current
     nx, ny = neighbor
     dx, dy = nx - x, ny - y
-
     if not (is_safe(grid, (x + dx, y)) and is_safe(grid, (x, y + dy))):
         return False
     if not is_safe(grid, (x + dx, y + dy)):
@@ -173,10 +172,11 @@ def astar_improved_with_targets(grid, start, targets, goal, smooth=True):
     visited_all = set()
     current = start
     points = targets + [goal]
-    for point in points:
+    target_order = []
+    for idx, point in enumerate(points):
         sub_path, visited = astar_improved(grid, current, point)
         if sub_path is None:
-            return None, visited_all
+            return None, visited_all, target_order
         if smooth:
             sub_path = smooth_path(sub_path, grid)
         if full_path:
@@ -184,5 +184,10 @@ def astar_improved_with_targets(grid, start, targets, goal, smooth=True):
         else:
             full_path += sub_path
         visited_all.update(visited)
+        if idx < len(targets):
+            for t_idx, t in enumerate(targets):
+                if point == t:
+                    target_order.append(t_idx)
+                    break
         current = point
-    return full_path, visited_all
+    return full_path, visited_all, target_order
