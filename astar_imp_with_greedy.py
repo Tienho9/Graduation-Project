@@ -13,7 +13,6 @@ def is_safe_diagonal(grid, current, neighbor):
     x, y = current
     nx, ny = neighbor
     dx, dy = nx - x, ny - y
-
     if not (is_safe(grid, (x + dx, y)) and is_safe(grid, (x, y + dy))):
         return False
     if not is_safe(grid, (x + dx, y + dy)):
@@ -168,73 +167,42 @@ def smooth_path(path, grid, must_include=None):
         i = j
     return smoothed
 
-def astar_improved_with_targets(grid, start, targets, goal, smooth=True):
-    full_path = []
-    visited_all = set()
-    current = start
-    points = targets + [goal]
-    for point in points:
-        sub_path, visited = astar_improved(grid, current, point)
-        if sub_path is None:
-            return None, visited_all
-        if smooth:
-            sub_path = smooth_path(sub_path, grid)
-        if full_path:
-            full_path += sub_path[1:]
-        else:
-            full_path += sub_path
-        visited_all.update(visited)
-        current = point
-    return full_path, visited_all
-
-
-# ======== A* cải tiến có mục tiêu trung gian ======
 
 def astar_improved_with_targets_greedy(grid, start, targets, goal, smooth=True):
-    """
-    A* cải tiến kết hợp Greedy để tìm đường đi qua các mục tiêu trung gian mà không lặp lại mục tiêu.
-    - Luôn chọn mục tiêu gần nhất để đi tiếp.
-    - Sau cùng đi tới goal.
-    - Nếu smooth=True, làm mượt sau khi ghép tất cả đoạn đường.
-    """
     remaining_targets = targets[:]
     current = start
     full_path = []
     visited_all = set()
-
+    target_order = []
     while remaining_targets:
-        # Tìm mục tiêu gần nhất theo khoảng cách heuristic
         nearest = min(remaining_targets, key=lambda t: euclidean(current, t))
-
-        # Tìm đường từ current tới nearest bằng A* cải tiến
+        # Lưu lại thứ tự index target đã đi qua
+        for t_idx, t in enumerate(targets):
+            if nearest == t:
+                target_order.append(t_idx)
+                break
         path, visited = astar_improved(grid, current, nearest)
         if not path:
-            return None, visited_all
-
-        # Ghép đường đi
-        if full_path:
-            full_path += path[1:]  # bỏ điểm trùng
-        else:
+            return None, visited_all, target_order
+        if path[0] != current:
+            path.insert(0, current)
+        if not full_path:
             full_path += path
-
+        else:
+            full_path += path[1:]
         visited_all.update(visited)
         current = nearest
         remaining_targets.remove(nearest)
-
-    # Đi từ điểm cuối tới đích
     path, visited = astar_improved(grid, current, goal)
     if path:
+        if path[0] != current:
+            path.insert(0, current)
         full_path += path[1:]
         visited_all.update(visited)
-
-    # Làm mượt nếu có yêu cầu
     if smooth:
-        full_path = smooth_path(full_path, grid, must_include=targets)
-
-    return full_path, visited_all
-
-
-
-
-
+        must_include_points = [start, goal] + list(targets)
+        full_path = smooth_path(full_path, grid, must_include=must_include_points)
+    if full_path and full_path[0] != start:
+        full_path.insert(0, start)
+    return full_path, visited_all, target_order
 
