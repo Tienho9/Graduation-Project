@@ -126,27 +126,39 @@ def astar_improved(grid, start, goal):
 def is_line_clear(p1, p2, grid):
     x1, y1 = p1
     x2, y2 = p2
-    dx, dy = abs(x2 - x1), abs(y2 - y1)
+    dx = x2 - x1
+    dy = y2 - y1
+    sx = 1 if dx > 0 else -1
+    sy = 1 if dy > 0 else -1
+    dx = abs(dx)
+    dy = abs(dy)
+
     x, y = x1, y1
-    n = 1 + dx + dy
-    x_inc = 1 if x2 > x1 else -1
-    y_inc = 1 if y2 > y1 else -1
-    error = dx - dy
-    dx *= 2
-    dy *= 2
+    err = dx - dy
+
     while True:
         if not is_safe(grid, (x, y)):
             return False
-        if x != x1 and y != y1:
-            if not (is_safe(grid, (x, y1)) and is_safe(grid, (x1, y))):
-                return False
-        if (x, y) == (x2, y2): break
-        if error > 0:
-            x += x_inc
-            error -= dy
-        else:
-            y += y_inc
-            error += dx
+        if (x, y) == (x2, y2):
+            break
+        
+        e2 = 2 * err
+        moved_diag = False
+        if e2 > -dy:
+            # Sắp di chuyển theo trục x
+            if e2 < dx: 
+                # Nếu cũng sẽ di chuyển theo trục y -> đây là bước đi chéo
+                # Trước khi đi chéo, kiểm tra các góc
+                if not is_safe(grid, (x + sx, y)) or not is_safe(grid, (x, y + sy)):
+                    return False
+            err -= dy
+            x += sx
+        
+        if e2 < dx:
+            # Di chuyển theo trục y
+            err += dx
+            y += sy
+
     return True
 
 def smooth_path(path, grid, must_include=None):
