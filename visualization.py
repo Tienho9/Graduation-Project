@@ -58,8 +58,8 @@ def plot_grid_map_compare(grid_map, start, goal,
             x1, y1 = path[i]
             x2, y2 = path[i + 1]
             line, = ax.plot(
-                [y1 + 0.8, y2 + 0.8],
-                [height - x1 - 0.6, height - x2 - 0.6],
+                [y1 + 0.6, y2 + 0.6],
+                [height - x1 - 0.5, height - x2 - 0.5],
                 color=color, linewidth=2, visible=False # Paths are initially hidden
             )
             segments.append(line)
@@ -68,7 +68,7 @@ def plot_grid_map_compare(grid_map, start, goal,
         # Draw points on the path (excluding start/goal/targets)
         for node in path:
             if node != start and node != goal and node not in targets:
-                point, = ax.plot(node[1] + 0.8, height - node[0] - 0.6, '.', color=color, markersize=4, visible=False)
+                point, = ax.plot(node[1] + 0.6, height - node[0] - 0.5, '.', color=color, markersize=4, visible=False)
                 segments.append(point) # Include points in segments to toggle visibility
 
     # ==== Vẽ các đường đi ====
