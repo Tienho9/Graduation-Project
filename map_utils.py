@@ -286,19 +286,33 @@ class InteractiveMapEditor:
         self.current_num_targets = num_targets
         self.current_env_type = env_type
         
-        max_attempts = 5  # Giảm số lần thử xuống 5
-        for attempt in range(max_attempts):
+        # Thêm một bộ đếm để tránh vòng lặp vô tận nếu tham số quá khó
+        attempts_count = 0
+        max_total_attempts = 100 # Đặt một giới hạn an toàn, có thể tăng nếu cần
+
+        # Sử dụng vòng lặp while True để lặp cho đến khi thành công
+        while True:
+            attempts_count += 1
+            # Kiểm tra giới hạn an toàn
+            if attempts_count > max_total_attempts:
+                print(f"❌ KHÔNG THỂ TẠO BẢN ĐỒ HỢP LỆ sau {max_total_attempts} lần thử!")
+                print("Vui lòng giảm mật độ chướng ngại vật hoặc tăng kích thước bản đồ.")
+                # Vẽ một bản đồ trống để người dùng không bị kẹt với bản đồ lỗi
+                self.grid = np.zeros((self.height, self.width), dtype=int)
+                self.start = None
+                self.goal = None
+                self.targets = []
+                break # Thoát khỏi vòng lặp
+
             self.grid = np.zeros((self.height, self.width), dtype=int)
 
             if env_type == 'default':
                 self.grid = (np.random.rand(self.height, self.width) < obstacle_prob).astype(int)
 
             elif env_type == 'uniform':
-                # Môi trường ngẫu nhiên đơn giản
                 self.grid = (np.random.rand(self.height, self.width) < obstacle_prob).astype(int)
 
             elif env_type == 'warehouse':
-                # Mô phỏng kệ hàng: tạo các dải tường thẳng với độ ngẫu nhiên
                 self.grid[0, :] = self.grid[-1, :] = self.grid[:, 0] = self.grid[:, -1] = 1
                 for i in range(2, self.height - 2, 4):
                     if np.random.random() < 0.8:
@@ -308,13 +322,11 @@ class InteractiveMapEditor:
                                 for j in range(1, self.width - 1):
                                     if np.random.random() > 0.1:
                                         self.grid[i + w, j] = 1
-                # Tạo lối đi giữa các kệ
                 for i in range(3, self.height - 3, 4):
                     if np.random.random() < 0.3:
                         self.grid[i, :] = 0
 
             elif env_type == 'city':
-                # Mô phỏng thành phố: đường lưới với độ ngẫu nhiên
                 road_spacing = np.random.randint(4, 7)
                 for i in range(0, self.height, road_spacing):
                     road_width = np.random.randint(1, 3)
@@ -326,56 +338,76 @@ class InteractiveMapEditor:
                     for w in range(road_width):
                         if j + w < self.width:
                             self.grid[:, j + w] = 1
-                # Tạo lối đi giữa các tòa nhà
                 for i in range(road_spacing, self.height, road_spacing):
                     for j in range(road_spacing, self.width, road_spacing):
                         if np.random.random() < 0.3:
                             self.grid[i-1:i+2, j-1:j+2] = 0
+            elif env_type == 'organic':
+                num_shapes = np.random.randint(5, 15)
+                for _ in range(num_shapes):
+                    shape_type = np.random.choice(['circle', 'rect', 'blob'])
+                    cx = np.random.randint(3, self.height - 3)
+                    cy = np.random.randint(3, self.width - 3)
+                    size = np.random.randint(2, 5)
+
+                    if shape_type == 'circle':
+                        for dx in range(-size, size+1):
+                            for dy in range(-size, size+1):
+                                if dx**2 + dy**2 <= size**2:
+                                    x, y = cx + dx, cy + dy
+                                    if 0 <= x < self.height and 0 <= y < self.width:
+                                        self.grid[x, y] = 1
+
+                    elif shape_type == 'rect':
+                        h = np.random.randint(2, 5)
+                        w = np.random.randint(2, 5)
+                        for dx in range(h):
+                            for dy in range(w):
+                                x, y = cx + dx, cy + dy
+                                if 0 <= x < self.height and 0 <= y < self.width:
+                                    self.grid[x, y] = 1
+
+                    elif shape_type == 'blob':
+                        points = [(cx, cy)]
+                        for _ in range(size * 3):
+                            px, py = points[-1]
+                            for dx, dy in [(-1,0), (1,0), (0,-1), (0,1)]:
+                                if np.random.rand() < 0.5:
+                                    nx, ny = px + dx, py + dy
+                                    if 0 <= nx < self.height and 0 <= ny < self.width:
+                                        self.grid[nx, ny] = 1
+                                        points.append((nx, ny))
 
             else:
                 raise ValueError(f"Loại môi trường không hợp lệ: {env_type}")
 
-            # --- Logic for placing S/G/T and checking path connectivity for *other* env types ---
-            # This part needs to be done *after* the grid is generated for the specific type.
-            # This applies ONLY IF env_type IS NOT 'guaranteed_path'
-            # Select free cells for start/goal/targets
+            # --- Logic for placing S/G/T and checking path connectivity ---
             free_cells = list(zip(*np.where(self.grid == 0)))
             np.random.shuffle(free_cells)
 
-            # Check if there are enough free cells
             required_free_cells = 2 + num_targets
             if len(free_cells) < required_free_cells:
-                print(f"⚠️ Không đủ ô trống ({len(free_cells)}) để đặt Start, Goal và {num_targets} Targets. Cần {required_free_cells}. Thử lại.")
-                self.grid = np.zeros((self.height, self.width), dtype=int)
-                self.start = None
-                continue  # Try again (next attempt)
+                # Không cần in ra console, chỉ cần thử lại
+                continue
 
-            # Attempt to place Start, Goal, Targets
             try:
                 self.start = free_cells.pop()
                 self.goal = free_cells.pop()
                 self.targets = [free_cells.pop() for _ in range(num_targets)]
 
-                # Check path connectivity (Start-Goal and involving targets)
                 valid_path_found = self.check_all_path_connectivity(self.grid, self.start, self.goal, self.targets)
 
                 if valid_path_found:
-                    break # Exit attempt loop
+                    print(f"✅ Đã tạo bản đồ hợp lệ sau {attempts_count} lần thử.")
+                    break # Thoát khỏi vòng lặp khi thành công
                 else:
-                    print("⚠️ Không có đường đi hợp lệ trên bản đồ ngẫu nhiên đã tạo. Thử lại.")
-                    # Path not found, continue to the next attempt
-                    continue
+                    continue # Tiếp tục vòng lặp nếu chưa thành công
 
             except IndexError:
-                # Not enough free cells left after placing some points
-                print("⚠️ Hết ô trống khi đặt Start, Goal, Targets. Thử lại.")
-                continue # Go to the next attempt
+                # Không đủ ô trống, tiếp tục vòng lặp
+                continue
 
-        # If the loop finished without generating a valid map in any attempt
-        if not valid_path_found:
-             print("❌ Không thể tạo bản đồ hợp lệ sau nhiều lần thử!")
-             # For now, just draw whatever the last attempt resulted in (might be empty or invalid)
-
+    # Khi vòng lặp kết thúc (do thành công hoặc hết số lần thử), vẽ lại lưới
         self.draw_grid()
 
     def check_all_path_connectivity(self, grid, start, goal, targets):
