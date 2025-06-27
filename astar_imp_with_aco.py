@@ -20,21 +20,80 @@ def is_safe_diagonal(grid, current, neighbor):
         return False
     return True
 
-def get_direction_priority(current, goal):
+def get_direction_priority(current, goal, grid, radius=2):
+    # Tính độ chênh giữa goal và vị trí hiện tại
     dx = goal[0] - current[0]
     dy = goal[1] - current[1]
-    directions = []
-    if dx < 0: directions.append((-1, 0))
-    elif dx > 0: directions.append((1, 0))
-    if dy < 0: directions.append((0, -1))
-    elif dy > 0: directions.append((0, 1))
-    if dx != 0 and dy != 0:
-        directions.insert(0, (dx // abs(dx), dy // abs(dy)))
-    return directions
+
+    # Tính góc (theo độ) giữa hướng đi hiện tại và trục X
+    # Chú ý: trục Y bị đảo vì trong lưới thường y tăng xuống dưới
+    angle = (math.degrees(math.atan2(-dy, dx)) + 360) % 360
+
+    # Định nghĩa 8 hướng đi
+    all_directions = {
+        'N': (-1, 0), 'NE': (-1, 1), 'E': (0, 1), 'SE': (1, 1),
+        'S': (1, 0), 'SW': (1, -1), 'W': (0, -1), 'NW': (-1, -1)
+    }
+
+    # Bảng quy tắc chọn 3 hướng theo từng góc (trường hợp không có vật cản)
+    direction_groups_3 = {
+        (337.5, 360): ['NW', 'N', 'NE'], (0, 22.5): ['NW', 'N', 'NE'],
+        (22.5, 67.5): ['N', 'NE', 'E'],
+        (67.5, 112.5): ['NE', 'E', 'SE'],
+        (112.5, 157.5): ['E', 'SE', 'S'],
+        (157.5, 202.5): ['SE', 'S', 'SW'],
+        (202.5, 247.5): ['S', 'SW', 'W'],
+        (247.5, 292.5): ['SW', 'W', 'NW'],
+        (292.5, 337.5): ['W', 'NW', 'N'],
+    }
+
+    # Bảng quy tắc chọn 5 hướng nếu có ít vật cản
+    direction_groups_5 = {
+        (337.5, 360): ['N', 'NE', 'E', 'W', 'NW'], (0, 22.5): ['N', 'NE', 'E', 'W', 'NW'],
+        (22.5, 67.5): ['N', 'NE', 'E', 'SE', 'NW'],
+        (67.5, 112.5): ['NE', 'E', 'SE', 'S', 'N'],
+        (112.5, 157.5): ['E', 'SE', 'S', 'SW', 'NE'],
+        (157.5, 202.5): ['SE', 'S', 'SW', 'W', 'E'],
+        (202.5, 247.5): ['S', 'SW', 'W', 'NW', 'SE'],
+        (247.5, 292.5): ['SW', 'W', 'NW', 'N', 'S'],
+        (292.5, 337.5): ['W', 'NW', 'N', 'NE', 'SW'],
+    }
+
+    # Đếm số vật cản xung quanh trong bán kính nhất định
+    def count_obstacles(grid, pos, radius):
+        rows, cols = len(grid), len(grid[0])
+        x0, y0 = pos
+        count = 0
+        for dx in range(-radius, radius+1):
+            for dy in range(-radius, radius+1):
+                nx, ny = x0 + dx, y0 + dy
+                if 0 <= nx < rows and 0 <= ny < cols and grid[nx][ny] == 1:
+                    count += 1
+        return count
+
+    obstacle_count = count_obstacles(grid, current, radius)
+
+    # Chọn chiến lược mở rộng hướng đi dựa trên mật độ vật cản
+    if obstacle_count == 0:
+        direction_set = direction_groups_3  # An toàn ➜ chỉ mở 3 hướng ưu tiên
+    elif obstacle_count < 4:
+        direction_set = direction_groups_5  # Có vài vật cản ➜ mở rộng 5 hướng
+    else:
+        return list(all_directions.values())  # Môi trường phức tạp ➜ mở đủ 8 hướng
+
+    # Chọn hướng phù hợp theo góc angle
+    for (start, end), names in direction_set.items():
+        if start <= angle < end or (start > end and (angle >= start or angle < end)):
+            return [all_directions[d] for d in names]
+
+    # Nếu không khớp vùng nào ➜ mở toàn bộ hướng (fallback)
+    return list(all_directions.values())
+
 
 def get_neighbors(current, grid, goal=None):
     x, y = current
-    preferred = get_direction_priority(current, goal) if goal else []
+    preferred = get_direction_priority(current, goal, grid) if goal else []
+
     fallback = [(-1, 0), (1, 0), (0, -1), (0, 1),
                 (-1, -1), (-1, 1), (1, -1), (1, 1)]
     directions = preferred + [d for d in fallback if d not in preferred]
