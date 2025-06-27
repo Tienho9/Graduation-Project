@@ -85,34 +85,44 @@ def astar_with_greedy_targets(grid, start, targets, goal, return_visited=False):
     full_path = []
     visited_all = set()
     current = start
-
+    target_order = []
     while remaining_targets:
         # Chọn điểm trung gian gần nhất (Greedy)
         nearest = min(remaining_targets, key=lambda t: euclidean(current, t))
-
+        # Lưu lại thứ tự index target đã đi qua
+        for t_idx, t in enumerate(targets):
+            if nearest == t:
+                target_order.append(t_idx)
+                break
         # Tìm đường đi từ current -> nearest
         path, visited = astar(grid, current, nearest, return_visited=True)
         if not path:
-            return (None, visited_all) if return_visited else None
-
+            if return_visited:
+                return None, visited_all, target_order
+            else:
+                return None
         # Ghép đường đi và cập nhật
         if full_path:
             full_path += path[1:]
         else:
             full_path += path
         visited_all.update(visited)
-
         current = nearest
         remaining_targets.remove(nearest)
-
     # Cuối cùng đi đến goal
     path, visited = astar(grid, current, goal, return_visited=True)
     if not path:
-        return (None, visited_all) if return_visited else None
-
+        if return_visited:
+            return None, visited_all, target_order
+        else:
+            return None
     full_path += path[1:]
     visited_all.update(visited)
-
-    return (full_path, visited_all) if return_visited else full_path
+    if full_path and full_path[0] != start:
+        full_path.insert(0, start)
+    if return_visited:
+        return full_path, visited_all, target_order
+    else:
+        return full_path
 
 
