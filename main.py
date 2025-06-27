@@ -44,58 +44,10 @@ def compute_path_stats(path, visited, runtime, planning_time):
 def safe_format(value, fmt):
     return fmt.format(value) if value is not None else "-"
 
-def check_path_collision(path, grid):
-    """Kiểm tra xem đường đi có chạm chướng ngại vật không"""
-    if not path:
-        return False, [], []
-    
-    collision_points = []
-    collision_segments = []
-    
-    # Kiểm tra từng điểm trong đường đi
-    for point in path:
-        x, y = point
-        if grid[x][y] == 1:  # Nếu điểm nằm trên chướng ngại vật
-            collision_points.append(point)
-    
-    # Kiểm tra các đoạn đường đi
-    for i in range(len(path) - 1):
-        p1, p2 = path[i], path[i + 1]
-        x1, y1 = p1
-        x2, y2 = p2
-        
-        # Kiểm tra các điểm xung quanh đoạn đường đi
-        dx, dy = abs(x2 - x1), abs(y2 - y1)
-        x, y = x1, y1
-        x_inc = 1 if x2 > x1 else -1
-        y_inc = 1 if y2 > y1 else -1
-        error = dx - dy
-        dx *= 2
-        dy *= 2
-        
-        while True:
-            # Kiểm tra điểm hiện tại
-            if grid[x][y] == 1:
-                collision_segments.append((p1, p2, (x, y)))
-            
-            # Kiểm tra các điểm xung quanh
-            if x != x1 and y != y1:
-                if grid[x][y1] == 1 or grid[x1][y] == 1:
-                    collision_segments.append((p1, p2, (x, y)))
-            
-            if (x, y) == (x2, y2):
-                break
-                
-            if error > 0:
-                x += x_inc
-                error -= dy
-            else:
-                y += y_inc
-                error += dx
-    
-    return len(collision_points) > 0 or len(collision_segments) > 0, collision_points, collision_segments
+def run_algorithms(map_file, selected_algo=None):
+    # Hàm này được thiết kế để gọi từ GUI hoặc dòng lệnh
+    # Trả về kết quả mà không in hoặc hiển thị trực tiếp
 
-def run_algorithms(map_file):
     data = np.load(map_file, allow_pickle=True).item()
     grid = data.get("grid")
     start = data.get("start")
@@ -110,236 +62,282 @@ def run_algorithms(map_file):
     targets = [tuple(t.tolist()) if isinstance(t, np.ndarray) else t for t in targets]
 
     if start is None or goal is None:
-        print("❌ Thiếu Start hoặc Goal!")
-        return
+        print("❌ Thiếu Start hoặc Goal!") 
+        return None, None, None, None
 
-    # Tìm và in ra tọa độ các chướng ngại vật
-    obstacles = []
-    for i in range(len(grid)):
-        for j in range(len(grid[0])):
-            if grid[i][j] == 1:
-                obstacles.append((i, j))
     
-    print("\n🗺️ THÔNG TIN MÔI TRƯỜNG:")
-    print("Start:", start)
-    print("Goal:", goal)
-    print("Targets:", targets)
-    print("Chướng ngại vật:", obstacles)
+    algo_info = {
+        "A* truyền thống": (astar_with_targets, "▶️ A* truyền thống...", True),
+        "A* truyền thống + Greedy": (astar_with_greedy_targets, "🤖 A* truyền thống + Greedy...", True),
+        "A* cải tiến": (astar_improved_with_targets, "✨ A* cải tiến...", False),
+        "A* cải tiến + Greedy": (astar_improved_with_targets_greedy, "💡 A* cải tiến + Greedy...", False),
+        "A* cải tiến + ACO": (astar_improved_with_targets_aco, "🌟 A* cải tiến + ACO...", False)
+    }
 
-    print("\n▶️ A* truyền thống...")
-    t0 = time.time()
-    path1, visited1, order1 = astar_with_targets(grid, start, targets, goal, return_visited=True)
-    runtime1 = time.time() - t0
-    stat1 = compute_path_stats(path1, visited1, runtime1, runtime1)
-    has_collision1, collision_points1, collision_segments1 = check_path_collision(path1, grid)
+    paths = {}
+    visited_nodes_raw = {}
+    orders = {}
+    metrics = {}
 
-    print("🤖 A* truyền thống + Greedy...")
-    t1 = time.time()
-    path2, visited2, order2 = astar_with_greedy_targets(grid, start, targets, goal, return_visited=True)
-    runtime2 = time.time() - t1
-    stat2 = compute_path_stats(path2, visited2, runtime2, runtime2)
-    has_collision2, collision_points2, collision_segments2 = check_path_collision(path2, grid)
+    algos_to_run = [selected_algo] if selected_algo and selected_algo != "All Algorithms" else algo_info.keys()
+    
+    for algo_name in algos_to_run:
+        if algo_name in algo_info:
+            algo_func, print_msg, supports_return_visited = algo_info[algo_name]
+            # Đã loại bỏ print cho GUI
+            t0 = time.time()
 
-    print("✨ A* cải tiến...")
-    t2 = time.time()
-    path3, visited3, order3 = astar_improved_with_targets(grid, start, targets, goal)
-    runtime3 = time.time() - t2
-    stat3 = compute_path_stats(path3, visited3, runtime3, runtime3)
-    has_collision3, collision_points3, collision_segments3 = check_path_collision(path3, grid)
+            # Gọi hàm với hoặc không với return_visited tùy thuật toán
+            # Đảm bảo tất cả hàm trả về visited và order nếu cần
+            if supports_return_visited:
+                # Giả định trả về (path, visited, order)
+                result = algo_func(grid, start, targets, goal, return_visited=True)
+            else:
+                # Giả định trả về (path, visited, order)
+                result = algo_func(grid, start, targets, goal)
 
-    print("💡 A* cải tiến + Greedy...")
-    t3 = time.time()
-    path4, visited4, order4 = astar_improved_with_targets_greedy(grid, start, targets, goal)
-    runtime4 = time.time() - t3
-    stat4 = compute_path_stats(path4, visited4, runtime4, runtime4)
-    has_collision4, collision_points4, collision_segments4 = check_path_collision(path4, grid)
+            runtime = time.time() - t0
 
-    print("🌟 A* cải tiến + ACO...")
-    t6 = time.time()
-    path6, visited6, order6 = astar_improved_with_targets_aco(grid, start, targets, goal)
-    runtime6 = time.time() - t6
-    stat6 = compute_path_stats(path6, visited6, runtime6, runtime6)
-    has_collision6, collision_points6, collision_segments6 = check_path_collision(path6, grid)
+            # Tất cả thuật toán đều phải trả về (path, visited, order)
+            if result and isinstance(result, tuple) and len(result) >= 2:
+                 path = result[0] if len(result) > 0 else None
+                 visited = result[1] if len(result) > 1 else set()
+                 order = result[2] if len(result) > 2 else []
+            else:
+                path, visited, order = None, set(), []
+                print(f"❌ {algo_name} thất bại hoặc trả về sai định dạng!") # Keep print for command line feedback
 
-    stats = [
-        ["Nodes",        stat1[2], stat2[2], stat3[2], stat4[2], stat6[2]],
-        ["Inflect.",      stat1[3], stat2[3], stat3[3], stat4[3], stat6[3]],
-        ["Angle", safe_format(stat1[4], "{:.1f}"), safe_format(stat2[4], "{:.1f}"),
-                               safe_format(stat3[4], "{:.1f}"), safe_format(stat4[4], "{:.1f}"), 
-                               safe_format(stat6[4], "{:.1f}")],
-        ["Length",            safe_format(stat1[5], "{:.1f}"), safe_format(stat2[5], "{:.1f}"),
-                               safe_format(stat3[5], "{:.1f}"), safe_format(stat4[5], "{:.1f}"), 
-                               safe_format(stat6[5], "{:.1f}")],
-        ["Collision", "Có" if has_collision1 else "Không", 
-                     "Có" if has_collision2 else "Không",
-                     "Có" if has_collision3 else "Không",
-                     "Có" if has_collision4 else "Không",
-                     "Có" if has_collision6 else "Không"]
-    ]
+            # Tính toán các chỉ số thống kê
+            planning_time = runtime # Đơn giản hóa: planning_time = runtime
+            stat = compute_path_stats(path, visited, runtime, planning_time)
 
-    print("\n📊 SO SÁNH THUẬT TOÁN")
-    print(tabulate(stats, headers=["Info", "A*TT", "TT+G", "CT", "CT+G", "CT+ACO"], tablefmt="fancy_grid"))
+            paths[algo_name] = path
+            visited_nodes_raw[algo_name] = visited
+            orders[algo_name] = order
+            metrics[algo_name] = {
+                "Runtime (s)": stat[0] if stat is not None and len(stat) > 0 else None,
+                "Planning (s)": stat[1] if stat is not None and len(stat) > 1 else None,
+                "Nodes": stat[2] if stat is not None and len(stat) > 2 else None,
+                "Inflect.": stat[3] if stat is not None and len(stat) > 3 else None,
+                "Angle": stat[4] if stat is not None and len(stat) > 4 else None,
+                "Length": stat[5] if stat is not None and len(stat) > 5 else None,
+                "Target Order": order # Thứ tự mục tiêu để so sánh
+            }
+            print(f"➡️ {algo_name} trả về thứ tự: {order}") # In ra để kiểm tra
+        else:
+            print(f"⚠️ Thuật toán {algo_name} không tìm thấy hoặc không được hỗ trợ.") # Keep print for command line feedback
 
-    # In thông tin chi tiết về va chạm và đường đi
-    print("\n🔍 CHI TIẾT ĐƯỜNG ĐI VÀ VA CHẠM:")
-    if path1:
-        print("\nA* TT:")
-        print("Đường đi:", path1)
-        if has_collision1:
-            print("Va chạm tại các điểm:", collision_points1)
-            print("Va chạm tại các đoạn:", collision_segments1)
-    if path2:
-        print("\nTT+Greedy:")
-        print("Đường đi:", path2)
-        if has_collision2:
-            print("Va chạm tại các điểm:", collision_points2)
-            print("Va chạm tại các đoạn:", collision_segments2)
-    if path3:
-        print("\nCT:")
-        print("Đường đi:", path3)
-        if has_collision3:
-            print("Va chạm tại các điểm:", collision_points3)
-            print("Va chạm tại các đoạn:", collision_segments3)
-    if path4:
-        print("\nCT+Greedy:")
-        print("Đường đi:", path4)
-        if has_collision4:
-            print("Va chạm tại các điểm:", collision_points4)
-            print("Va chạm tại các đoạn:", collision_segments4)
-    if path6:
-        print("\nCT+ACO:")
-        print("Đường đi:", path6)
-        if has_collision6:
-            print("Va chạm tại các điểm:", collision_points6)
-            print("Va chạm tại các đoạn:", collision_segments6)
+    return paths, visited_nodes_raw, orders, metrics
 
-    # Tạo text thứ tự target đi qua cho từng thuật toán
-    def order_text(order):
-        if not order or not targets:
-            return "Không có target nào."
-        return ' → '.join([f"T{i+1}" for i in order])
+def calculate_overall_scores(metrics_data):
+    """
+    Tính điểm tổng hợp cho các thuật toán dựa trên các chỉ số:
+    - Length (độ dài đường đi)
+    - Inflect. (số lần rẽ)
+    - Angle (tổng góc rẽ)
+    - Nodes (số node duyệt)
+    Trọng số: Length=0.4, Inflect.=0.2, Angle=0.2, Nodes=0.2
+    KHÔNG chuẩn hóa, chỉ cộng theo trọng số.
+    metrics_data: dict {algo_name: {'Length':..., 'Inflect.':..., 'Angle':..., 'Nodes':...}}
+    Trả về: dict {algo_name: overall_score}
+    """
+    weights = {'Length': 0.4, 'Inflect.': 0.2, 'Angle': 0.2, 'Nodes': 0.2}
+    keys = list(weights.keys())
+    scores = {}
+    for algo, m in metrics_data.items():
+        score = 0.0
+        for k in keys:
+            v = m.get(k, 0)
+            score += weights[k] * v
+        scores[algo] = score
+    return scores
 
-    import matplotlib.pyplot as plt
-    print("🎨 Nhấn phím [1-5] để hiện/ẩn các đường đi:")
-    fig = plot_grid_map_compare(
-        grid, start, goal,
-        path1, path2, path3, path4, path6,
-        targets,
-        targets_ordered_list=[order1, order2, order3, order4, order6]
-    )
-    # Hiển thị thứ tự dưới lưới
-    plt.figtext(0.05, 0.10, f"A* TT: {order_text(order1)}", ha='left', fontsize=8, color='red')
-    plt.figtext(0.05, 0.12, f"TT+Greedy: {order_text(order2)}", ha='left', fontsize=8, color='red')
-    plt.figtext(0.05, 0.14, f"CT: {order_text(order3)}", ha='left', fontsize=8, color='red')
-    plt.figtext(0.05, 0.16, f"CT+Greedy: {order_text(order4)}", ha='left', fontsize=8, color='red')
-    plt.figtext(0.05, 0.18, f"CT+ACO: {order_text(order6)}", ha='left', fontsize=8, color='red')
-    plt.show()
-
-# ============================ TẠO HOẶC CHỌN BẢN ĐỒ ===============================
-
-saved_maps = [f for f in os.listdir() if f.endswith(".npy")]
-if saved_maps:
-    print("\n📂 Danh sách bản đồ đã lưu:")
-    for i, f in enumerate(saved_maps):
-        print(f"{i + 1}. {f}")
-    choice = input("🔢 Chọn bản đồ (số) hoặc nhập tên mới: ").strip()
-    if choice.isdigit() and 1 <= int(choice) <= len(saved_maps):
-        map_file = saved_maps[int(choice) - 1]
-        # Kiểm tra và load file bản đồ an toàn
-        try:
-            map_data = np.load(map_file, allow_pickle=True).item()
-            if not all(k in map_data for k in ["grid", "start", "goal", "targets"]):
-                print(f"❌ File '{map_file}' thiếu trường dữ liệu cần thiết (grid, start, goal, targets). Hãy tạo lại bản đồ!")
-                exit(1)
-        except FileNotFoundError:
-            print(f"❌ Không tìm thấy file '{map_file}'. Hãy kiểm tra lại tên file!")
-            exit(1)
-        except Exception as e:
-            print(f"❌ Lỗi khi đọc file '{map_file}': {e}. Hãy kiểm tra lại file!")
-            exit(1)
-        run_algorithms(map_file)
-    else:
-        map_file = f"{choice}.npy"
-        w = int(input("🔧 Nhập width bản đồ: "))
-        h = int(input("🔧 Nhập height bản đồ: "))
-        random_choice = input("🌱 Sinh ngẫu nhiên bản đồ? (Y/n): ").strip().lower()
-        editor = InteractiveMapEditor(width=w, height=h, map_file=map_file)
-        if random_choice == '' or random_choice == 'y':
+def main():
+    # ============================ TẠO HOẶC CHỌN BẢN ĐỒ (COMMAND LINE) ===============================
+    saved_maps = [f for f in os.listdir() if f.endswith(".npy")]
+    if saved_maps:
+        print("\n📂 Danh sách bản đồ đã lưu:")
+        for i, f in enumerate(saved_maps):
+            print(f"{i + 1}. {f}")
+        choice = input("🔢 Chọn bản đồ (số) hoặc nhập tên mới: ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(saved_maps):
+            map_file = saved_maps[int(choice) - 1]
+            # Kiểm tra và load file bản đồ an toàn
             try:
-                print("\n🌍 Chọn loại môi trường:")
-                print("1. Mặc định (ngẫu nhiên)")
-                print("2. Nhà kho (warehouse)")
-                print("3. Thành phố (city)")
-                print("4. Mê cung (maze)")
-                print("5. Rừng (forest)")
-                print("6. Núi (mountain)")
-                env_choice = input("🔢 Chọn loại môi trường (1-6, mặc định 1): ").strip()
-                env_types = {
-                    '1': 'default',
-                    '2': 'warehouse',
-                    '3': 'city',
-                    '4': 'maze',
-                    '5': 'forest',
-                    '6': 'mountain'
-                }
-                env_type = env_types.get(env_choice, 'default')
-                
-                obstacle_prob = float(input("🔢 Tỉ lệ chướng ngại vật (0-1, mặc định 0.2): ") or 0.2)
-                num_targets = int(input("🔢 Số lượng targets (mặc định 1): ") or 1)
-                editor.randomize(obstacle_prob=obstacle_prob, num_targets=num_targets, env_type=env_type)
-                map_data = {
-                    "grid": editor.grid,
-                    "start": editor.start,
-                    "goal": editor.goal,
-                    "targets": editor.targets
-                }
-                np.save(map_file, map_data)
-                print(f"💾 Đã lưu bản đồ ngẫu nhiên vào file '{map_file}'")
+                map_data = np.load(map_file, allow_pickle=True).item()
+                if not all(k in map_data for k in ["grid", "start", "goal", "targets"]):
+                    print(f"❌ File '{map_file}' thiếu trường dữ liệu cần thiết (grid, start, goal, targets). Hãy tạo lại bản đồ!")
+                    return # Use return instead of exit for cleaner script termination
+            except FileNotFoundError:
+                print(f"❌ Không tìm thấy file '{map_file}'. Hãy kiểm tra lại tên file!")
+                return # Use return
             except Exception as e:
-                print(f"❌ Lỗi khi random: {e}. Sẽ tạo bản đồ trống.")
-        editor.run()
-        run_algorithms(map_file)
-else:
-    print("⚠️ Không có bản đồ nào, tạo mới...")
-    map_file = "map1.npy"
-    w = int(input("🔧 Nhập width bản đồ: "))
-    h = int(input("🔧 Nhập height bản đồ: "))
-    random_choice = input("🌱 Sinh ngẫu nhiên bản đồ? (Y/n): ").strip().lower()
-    editor = InteractiveMapEditor(width=w, height=h, map_file=map_file)
-    if random_choice == '' or random_choice == 'y':
-        try:
-            print("\n🌍 Chọn loại môi trường:")
-            print("1. Mặc định (ngẫu nhiên)")
-            print("2. Nhà kho (warehouse)")
-            print("3. Thành phố (city)")
-            print("4. Mê cung (maze)")
-            print("5. Rừng (forest)")
-            print("6. Núi (mountain)")
-            env_choice = input("🔢 Chọn loại môi trường (1-6, mặc định 1): ").strip()
-            env_types = {
-                '1': 'default',
-                '2': 'warehouse',
-                '3': 'city',
-                '4': 'maze',
-                '5': 'forest',
-                '6': 'mountain'
-            }
-            env_type = env_types.get(env_choice, 'default')
+                print(f"❌ Lỗi khi đọc file '{map_file}': {e}. Hãy kiểm tra lại file!")
+                return # Use return
+
             
-            obstacle_prob = float(input("🔢 Tỉ lệ chướng ngại vật (0-1, mặc định 0.2): ") or 0.2)
-            num_targets = int(input("🔢 Số lượng targets (mặc định 1): ") or 1)
-            editor.randomize(obstacle_prob=obstacle_prob, num_targets=num_targets, env_type=env_type)
-            map_data = {
-                "grid": editor.grid,
-                "start": editor.start,
-                "goal": editor.goal,
-                "targets": editor.targets
-            }
-            np.save(map_file, map_data)
-            print(f"💾 Đã lưu bản đồ ngẫu nhiên vào file '{map_file}'")
+            paths, visited_nodes_raw, orders, metrics = run_algorithms(map_file)
+            
+            
+            print("\n📊 SO SÁNH THUẬT TOÁN")
+            headers = ["Info", "A*TT", "TT+G", "CT", "CT+G", "CT+ACO"]
+            
+            metric_rows = []
+            
+            if metrics:
+                 sample_metrics = list(metrics.values())[0]
+                 metric_names = [key for key in sample_metrics.keys() if key != "Target Order"]
+                 for metric_name in metric_names:
+                      row = [metric_name] + [metrics.get(algo, {}).get(metric_name, "-") for algo in algo_info.keys()]
+                      # Format numeric values for printing in command line
+                      formatted_row = [row[0]] + [safe_format(val, "{:.3f}") if isinstance(val, float) and metric_name in ["Runtime (s)", "Planning (s)"] else safe_format(val, "{:.1f}") if isinstance(val, float) and metric_name in ["Angle", "Length"] else str(val) for val in row[1:]]
+                      metric_rows.append(formatted_row)
+                      
+                 
+                 order_row = ["Target Order"] + [' → '.join([str(t_idx + 1) for t_idx in orders.get(algo, [])]) if orders.get(algo) else "-" for algo in algo_info.keys()]
+                 metric_rows.append(order_row)
+
+                 print(tabulate(metric_rows, headers=headers, tablefmt="fancy_grid"))
+
+            # In thông tin chi tiết về đường đi (Command Line)
+            print("\n🔍 CHI TIẾT ĐƯỜNG ĐI:")
+            
+            for algo_name in algo_info.keys():
+                path = paths.get(algo_name)
+                if path:
+                    print(f"\n{algo_name}:")
+                    print("Đường đi:", path)
+
+           
+            import matplotlib.pyplot as plt
+            print("🎨 Nhấn phím [1-5] để hiện/ẩn các đường đi:")
+            
+            paths_list = [paths.get(algo, []) for algo in algo_info.keys()]
+            orders_list = [orders.get(algo, []) for algo in algo_info.keys()]
+
+            fig = plot_grid_map_compare(
+                grid, start, goal,
+                *paths_list, 
+                targets,
+                targets_ordered_list=orders_list 
+            )
+      
+            def order_text_cmd(order_list, targets_list):
+                if not order_list or not targets_list:
+                    return "Không có target nào."
+                return ' → '.join([f"T{t_idx + 1}" for t_idx in order_list])
+
+            y_pos = 0.10  # Starting y position for text
+            colors = ['red', 'orange', 'blue', 'purple', 'green'] 
+            for i, algo_name in enumerate(algo_info.keys()):
+                 order = orders.get(algo_name, [])
+                 formatted_order_text = order_text_cmd(order, targets)
+                 plt.figtext(0.05, y_pos, f"{algo_name}: {formatted_order_text}", 
+                           ha='left', fontsize=8, color=colors[i % len(colors)])
+                 y_pos -= 0.02 
+
+            plt.show()
+
+        else:
+       
+            map_file = f"{choice}.npy"
+            try:
+                w = int(input("🔧 Nhập width bản đồ: "))
+                h = int(input("🔧 height bản đồ: "))
+                random_choice = input("🌱 Sinh ngẫu nhiên bản đồ? (Y/n): ").strip().lower()
+                editor = InteractiveMapEditor(width=w, height=h, map_file=map_file)
+
+                if random_choice == '' or random_choice == 'y':
+                    print("\n🌍 Chọn loại môi trường:")
+                    print("1. Mặc định (ngẫu nhiên)")
+                    print("2. Nhà kho (warehouse)")
+                    print("3. Thành phố (city)")
+                    env_choice = input("🔢 Chọn loại môi trường (1-3, mặc định 1): ").strip()
+                    env_types = {
+                        '1': 'default',
+                        '2': 'warehouse',
+                        '3': 'city'
+                    }
+                    env_type = env_types.get(env_choice, 'default')
+                    
+                    obstacle_prob = float(input("🔢 Tỉ lệ chướng ngại vật (0-1, mặc định 0.2): ") or 0.2)
+                    num_targets = int(input("🔢 Số lượng targets (mặc định 1): ") or 1)
+                    editor.randomize(obstacle_prob=obstacle_prob, num_targets=num_targets, env_type=env_type)
+                    map_data = {
+                        "grid": editor.grid,
+                        "start": editor.start,
+                        "goal": editor.goal,
+                        "targets": editor.targets
+                    }
+                    np.save(map_file, map_data)
+                    print(f"💾 Đã lưu bản đồ ngẫu nhiên vào file '{map_file}'")
+                else:
+                    print("🗺️ Tạo bản đồ trống.")
+                
+               
+                run_algorithms(map_file)
+                
+                
+            except ValueError:
+                print("❌ Đầu vào không hợp lệ. Vui lòng nhập số.")
+                return
+            except Exception as e:
+                print(f"❌ Lỗi khi tạo bản đồ: {e}")
+                return
+            
+          
+
+    else:
+        
+        print("⚠️ Không có bản đồ nào, tạo mới...")
+        map_file = "map1.npy"
+        try:
+            w = int(input("🔧 Nhập width bản đồ: "))
+            h = int(input("🔧 height bản đồ: "))
+            random_choice = input("🌱 Sinh ngẫu nhiên bản đồ? (Y/n): ").strip().lower()
+            editor = InteractiveMapEditor(width=w, height=h, map_file=map_file)
+
+            if random_choice == '' or random_choice == 'y':
+                 print("\n🌍 Chọn loại môi trường:")
+                 print("1. Mặc định (ngẫu nhiên)")
+                 print("2. Nhà kho (warehouse)")
+                 print("3. Thành phố (city)")
+                 env_choice = input("🔢 Chọn loại môi trường (1-3, mặc định 1): ").strip()
+                 env_types = {
+                     '1': 'default',
+                     '2': 'warehouse',
+                     '3': 'city'
+                 }
+                 env_type = env_types.get(env_choice, 'default')
+                 
+                 obstacle_prob = float(input("🔢 Tỉ lệ chướng ngại vật (0-1, mặc định 0.2): ") or 0.2)
+                 num_targets = int(input("🔢 Số lượng targets (mặc định 1): ") or 1)
+                 editor.randomize(obstacle_prob=obstacle_prob, num_targets=num_targets, env_type=env_type)
+                 map_data = {
+                     "grid": editor.grid,
+                     "start": editor.start,
+                     "goal": editor.goal,
+                     "targets": editor.targets
+                 }
+                 np.save(map_file, map_data)
+                 print(f"💾 Đã lưu bản đồ ngẫu nhiên vào file '{map_file}'")
+            else:
+                print("🗺️ Tạo bản đồ trống.")
+
+            
+            run_algorithms(map_file)
+
+            
+
+        except ValueError:
+             print("❌ Đầu vào không hợp lệ. Vui lòng nhập số.")
+             return
         except Exception as e:
-            print(f"❌ Lỗi khi random: {e}. Sẽ tạo bản đồ trống.")
-    editor.run()
-    run_algorithms(map_file)
+             print(f"❌ Lỗi khi tạo bản đồ: {e}")
+             return
+
+
+if __name__ == '__main__':
+    main()
 
 
