@@ -7,7 +7,6 @@ from map_utils import InteractiveMapEditor
 from astar_trad import astar_with_targets
 from astar_imp import astar_improved_with_targets
 from astar_imp_with_greedy import astar_improved_with_targets_greedy
-from astar_trad_with_greedy import astar_with_greedy_targets
 from visualization import plot_grid_map_compare
 from astar_imp_with_aco import astar_improved_with_targets_aco
 
@@ -54,7 +53,6 @@ def run_algorithms(map_file, selected_algo=None):
     goal = data.get("goal")
     targets = data.get("targets", [])
 
-    # Chuyển đổi numpy array sang tuple nếu cần, để đảm bảo định dạng (row, col)
     if isinstance(start, np.ndarray):
         start = tuple(start.tolist())
     if isinstance(goal, np.ndarray):
@@ -67,11 +65,10 @@ def run_algorithms(map_file, selected_algo=None):
 
     
     algo_info = {
-        "A* truyền thống": (astar_with_targets, "▶️ A* truyền thống...", True),
-        "A* truyền thống + Greedy": (astar_with_greedy_targets, "🤖 A* truyền thống + Greedy...", True),
-        "A* cải tiến": (astar_improved_with_targets, "✨ A* cải tiến...", False),
-        "A* cải tiến + Greedy": (astar_improved_with_targets_greedy, "💡 A* cải tiến + Greedy...", False),
-        "A* cải tiến + ACO": (astar_improved_with_targets_aco, "🌟 A* cải tiến + ACO...", False)
+        "A*": (astar_with_targets, "▶️ A*...", True),
+        "ImpA*": (astar_improved_with_targets, "✨ ImpA*...", False),
+        "ImpA*G": (astar_improved_with_targets_greedy, "💡 ImpA*G...", False),
+        "ImpA*ACO": (astar_improved_with_targets_aco, "🌟 ImpA*ACO...", False)
     }
 
     paths = {}
@@ -84,21 +81,15 @@ def run_algorithms(map_file, selected_algo=None):
     for algo_name in algos_to_run:
         if algo_name in algo_info:
             algo_func, print_msg, supports_return_visited = algo_info[algo_name]
-            # Đã loại bỏ print cho GUI
             t0 = time.time()
 
-            # Gọi hàm với hoặc không với return_visited tùy thuật toán
-            # Đảm bảo tất cả hàm trả về visited và order nếu cần
             if supports_return_visited:
-                # Giả định trả về (path, visited, order)
                 result = algo_func(grid, start, targets, goal, return_visited=True)
             else:
-                # Giả định trả về (path, visited, order)
                 result = algo_func(grid, start, targets, goal)
 
             runtime = time.time() - t0
 
-            # Tất cả thuật toán đều phải trả về (path, visited, order)
             if result and isinstance(result, tuple) and len(result) >= 2:
                  path = result[0] if len(result) > 0 else None
                  visited = result[1] if len(result) > 1 else set()
@@ -107,8 +98,7 @@ def run_algorithms(map_file, selected_algo=None):
                 path, visited, order = None, set(), []
                 print(f"❌ {algo_name} thất bại hoặc trả về sai định dạng!") # Keep print for command line feedback
 
-            # Tính toán các chỉ số thống kê
-            planning_time = runtime # Đơn giản hóa: planning_time = runtime
+            planning_time = runtime 
             stat = compute_path_stats(path, visited, runtime, planning_time)
 
             paths[algo_name] = path
@@ -121,27 +111,17 @@ def run_algorithms(map_file, selected_algo=None):
                 "Inflect.": stat[3] if stat is not None and len(stat) > 3 else None,
                 "Angle": stat[4] if stat is not None and len(stat) > 4 else None,
                 "Length": stat[5] if stat is not None and len(stat) > 5 else None,
-                "Target Order": order # Thứ tự mục tiêu để so sánh
+                "Target Order": order 
             }
-            print(f"➡️ {algo_name} trả về thứ tự: {order}") # In ra để kiểm tra
+            print(f"➡️ {algo_name} trả về thứ tự: {order}") 
         else:
             print(f"⚠️ Thuật toán {algo_name} không tìm thấy hoặc không được hỗ trợ.") # Keep print for command line feedback
 
     return paths, visited_nodes_raw, orders, metrics
 
 def calculate_overall_scores(metrics_data):
-    """
-    Tính điểm tổng hợp cho các thuật toán dựa trên các chỉ số:
-    - Length (độ dài đường đi)
-    - Inflect. (số lần rẽ)
-    - Angle (tổng góc rẽ)
-    - Nodes (số node duyệt)
-    Trọng số: Length=0.4, Inflect.=0.2, Angle=0.2, Nodes=0.2
-    KHÔNG chuẩn hóa, chỉ cộng theo trọng số.
-    metrics_data: dict {algo_name: {'Length':..., 'Inflect.':..., 'Angle':..., 'Nodes':...}}
-    Trả về: dict {algo_name: overall_score}
-    """
-    weights = {'Length': 0.4, 'Inflect.': 0.2, 'Angle': 0.2, 'Nodes': 0.2}
+  
+    weights = {'Length': 0.4, 'Inflect.': 0.3, 'Angle': 0.3}
     keys = list(weights.keys())
     scores = {}
     for algo, m in metrics_data.items():
@@ -153,7 +133,7 @@ def calculate_overall_scores(metrics_data):
     return scores
 
 def main():
-    # ============================ TẠO HOẶC CHỌN BẢN ĐỒ (COMMAND LINE) ===============================
+   
     saved_maps = [f for f in os.listdir() if f.endswith(".npy")]
     if saved_maps:
         print("\n📂 Danh sách bản đồ đã lưu:")
@@ -162,25 +142,24 @@ def main():
         choice = input("🔢 Chọn bản đồ (số) hoặc nhập tên mới: ").strip()
         if choice.isdigit() and 1 <= int(choice) <= len(saved_maps):
             map_file = saved_maps[int(choice) - 1]
-            # Kiểm tra và load file bản đồ an toàn
             try:
                 map_data = np.load(map_file, allow_pickle=True).item()
                 if not all(k in map_data for k in ["grid", "start", "goal", "targets"]):
                     print(f"❌ File '{map_file}' thiếu trường dữ liệu cần thiết (grid, start, goal, targets). Hãy tạo lại bản đồ!")
-                    return # Use return instead of exit for cleaner script termination
+                    return 
             except FileNotFoundError:
                 print(f"❌ Không tìm thấy file '{map_file}'. Hãy kiểm tra lại tên file!")
-                return # Use return
+                return 
             except Exception as e:
                 print(f"❌ Lỗi khi đọc file '{map_file}': {e}. Hãy kiểm tra lại file!")
-                return # Use return
+                return 
 
             
             paths, visited_nodes_raw, orders, metrics = run_algorithms(map_file)
             
             
             print("\n📊 SO SÁNH THUẬT TOÁN")
-            headers = ["Info", "A*TT", "TT+G", "CT", "CT+G", "CT+ACO"]
+            headers = ["Info", "A*", "ImpA*", "ImpA*G", "ImpA*ACO"]
             
             metric_rows = []
             
@@ -189,7 +168,6 @@ def main():
                  metric_names = [key for key in sample_metrics.keys() if key != "Target Order"]
                  for metric_name in metric_names:
                       row = [metric_name] + [metrics.get(algo, {}).get(metric_name, "-") for algo in algo_info.keys()]
-                      # Format numeric values for printing in command line
                       formatted_row = [row[0]] + [safe_format(val, "{:.3f}") if isinstance(val, float) and metric_name in ["Runtime (s)", "Planning (s)"] else safe_format(val, "{:.1f}") if isinstance(val, float) and metric_name in ["Angle", "Length"] else str(val) for val in row[1:]]
                       metric_rows.append(formatted_row)
                       
@@ -199,7 +177,6 @@ def main():
 
                  print(tabulate(metric_rows, headers=headers, tablefmt="fancy_grid"))
 
-            # In thông tin chi tiết về đường đi (Command Line)
             print("\n🔍 CHI TIẾT ĐƯỜNG ĐI:")
             
             for algo_name in algo_info.keys():
@@ -227,7 +204,7 @@ def main():
                     return "Không có target nào."
                 return ' → '.join([f"T{t_idx + 1}" for t_idx in order_list])
 
-            y_pos = 0.10  # Starting y position for text
+            y_pos = 0.10  
             colors = ['red', 'orange', 'blue', 'purple', 'green'] 
             for i, algo_name in enumerate(algo_info.keys()):
                  order = orders.get(algo_name, [])
@@ -235,6 +212,15 @@ def main():
                  plt.figtext(0.05, y_pos, f"{algo_name}: {formatted_order_text}", 
                            ha='left', fontsize=8, color=colors[i % len(colors)])
                  y_pos -= 0.02 
+
+            sx, sy = start
+            ax.add_patch(plt.Rectangle((sy, height - sx - 1), 1, 1, color='green', label='Start'))
+            gx, gy = goal
+            ax.add_patch(plt.Rectangle((gy, height - gx - 1), 1, 1, color='red', label='Goal'))
+            if targets:
+                for idx, (tx, ty) in enumerate(targets):
+                    ax.add_patch(plt.Rectangle((ty, height - tx - 1), 1, 1, color='orange', label='Target' if idx == 0 else ""))
+                    ax.text(ty + 0.5, height - tx - 0.5, f"T{idx+1}", color='blue', fontsize=7, ha='center', va='center', fontweight='bold')
 
             plt.show()
 
