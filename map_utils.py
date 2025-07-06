@@ -1,14 +1,5 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.widgets import TextBox
-
-# Cấu hình matplotlib để chỉ hiển thị cửa sổ chính
-plt.rcParams['figure.figsize'] = [12, 10]
-plt.rcParams['figure.dpi'] = 100
-plt.rcParams['figure.autolayout'] = True
-plt.rcParams['figure.constrained_layout.use'] = True
-plt.rcParams['figure.max_open_warning'] = 1
-plt.rcParams['figure.raise_window'] = True
 
 class InteractiveMapEditor:
     def __init__(self, width=30, height=30, map_file="saved_map.npy"):
@@ -20,39 +11,28 @@ class InteractiveMapEditor:
         self.targets = []
         self.map_file = map_file
         
-        # Đóng tất cả các cửa sổ hiện có
         plt.close('all')
-        
-        # Khởi tạo figure và axes với kích thước lớn hơn
         self.fig = plt.figure(figsize=(12, 10))
         self.fig.canvas.manager.set_window_title('Interactive Map Editor')
-        
-        # Tạo grid layout
         gs = self.fig.add_gridspec(2, 1, height_ratios=[0.9, 0.1])
         
-        # Axes chính cho bản đồ
         self.ax = self.fig.add_subplot(gs[0])
         
-        # Axes cho status bar
         self.status_ax = self.fig.add_subplot(gs[1])
         self.status_ax.axis('off')
         
-        # Tạo image plot cho lưới
         self.grid_plot = self.ax.imshow(self.grid, cmap='Greys', vmin=0, vmax=1, interpolation='nearest')
         
-        # Thiết lập các sự kiện
         self.cid_click = self.fig.canvas.mpl_connect('button_press_event', self.onclick)
         self.cid_key = self.fig.canvas.mpl_connect('key_press_event', self.onkeypress)
         self.cid_scroll = self.fig.canvas.mpl_connect('scroll_event', self.on_scroll)
         
-        # Thiết lập trục
         self.ax.set_xticks(np.arange(-0.5, self.width, 1), minor=True)
         self.ax.set_yticks(np.arange(-0.5, self.height, 1), minor=True)
         self.ax.grid(True, which='minor', color='gray', linestyle='-', linewidth=0.5)
         self.ax.set_xticks([])
         self.ax.set_yticks([])
         
-        # Thêm tiêu đề
         self.ax.set_title('Interactive Map Editor', pad=20, fontsize=14, fontweight='bold')
         
         # Thêm chú thích
@@ -68,7 +48,6 @@ class InteractiveMapEditor:
         # Vẽ lưới ban đầu
         self.draw_grid()
         
-        # Cập nhật status bar
         self.update_status()
 
     def update_status(self):
@@ -84,37 +63,26 @@ class InteractiveMapEditor:
         self.fig.canvas.draw_idle()
 
     def draw_grid(self):
-        # Xóa tất cả các phần tử hiện có trên axes
         self.ax.clear()
-        
-        # Thiết lập lại các thuộc tính cơ bản
         self.ax.set_xticks(np.arange(-0.5, self.width, 1), minor=True)
         self.ax.set_yticks(np.arange(-0.5, self.height, 1), minor=True)
         self.ax.grid(True, which='minor', color='gray', linestyle='-', linewidth=0.5)
         self.ax.set_xticks([])
         self.ax.set_yticks([])
         
-        # Tạo ma trận màu cho lưới
-        grid_colors = np.ones((self.height, self.width, 3), dtype=float)  # Mặc định màu trắng
-        
-        # Đặt màu cho các ô có chướng ngại vật
-        grid_colors[self.grid == 1] = [0.5, 0.5, 0.5]  # Xám cho chướng ngại vật
-        
-        # Đặt màu cho start, goal và targets
+        grid_colors = np.ones((self.height, self.width, 3), dtype=float)  
+        grid_colors[self.grid == 1] = [0.5, 0.5, 0.5]  
         if self.start:
-            grid_colors[self.start[0], self.start[1]] = [0, 0.8, 0]  # Xanh lá cho start
+            grid_colors[self.start[0], self.start[1]] = [0, 0.8, 0]  
         if self.goal:
-            grid_colors[self.goal[0], self.goal[1]] = [0.8, 0, 0]  # Đỏ cho goal
+            grid_colors[self.goal[0], self.goal[1]] = [0.8, 0, 0]  
         for tx, ty in self.targets:
-            grid_colors[tx, ty] = [1, 0.5, 0]  # Cam cho targets
+            grid_colors[tx, ty] = [1, 0.5, 0]  
             
-        # Vẽ lại grid
         self.grid_plot = self.ax.imshow(grid_colors, origin='upper', extent=[-0.5, self.width-0.5, self.height-0.5, -0.5])
         
-        # Thêm tiêu đề
         self.ax.set_title('Interactive Map Editor', pad=20, fontsize=14, fontweight='bold')
-        
-        # Thêm chú thích
+    
         legend_elements = [
             plt.Rectangle((0, 0), 1, 1, facecolor='white', edgecolor='black', label='Empty'),
             plt.Rectangle((0, 0), 1, 1, facecolor='gray', label='Obstacle'),
@@ -124,40 +92,44 @@ class InteractiveMapEditor:
         ]
         self.ax.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(1.15, 1))
         
-        # Cập nhật status bar
         self.update_status()
         
-        # Vẽ lại figure
         self.fig.canvas.draw_idle()
 
     def onclick(self, event):
         if event.inaxes != self.ax:
             return
-            
-        # Chuyển đổi tọa độ chuột thành tọa độ lưới
+        
         col = int(event.xdata + 0.5)
         row = int(event.ydata + 0.5)
         
         if not (0 <= row < self.height and 0 <= col < self.width):
             return
 
-        if event.button == 1:  # Left click – toggle obstacle
-            if (row, col) not in [self.start, self.goal] + self.targets:
+        pos = (row, col)
+
+        if event.button == 1:  
+            if self.start == pos:
+                self.start = None
+            elif self.goal == pos:
+                self.goal = None
+            elif pos in self.targets:
+                self.targets.remove(pos)
+            else:
                 self.grid[row, col] = 1 - self.grid[row, col]
 
-        elif event.button == 3:  # Right click – set start, goal, target
+        elif event.button == 3:  
             if self.start is None:
-                self.start = (row, col)
-                self.grid[row, col] = 0  # Loại bỏ obstacle nếu có
-            elif self.goal is None and (row, col) != self.start:
-                self.goal = (row, col)
+                self.start = pos
+                self.grid[row, col] = 0  
+            elif self.goal is None and pos != self.start:
+                self.goal = pos
                 self.grid[row, col] = 0
-            elif (row, col) not in [self.start, self.goal] and (row, col) not in self.targets:
-                self.targets.append((row, col))
-                self.grid[row, col] = 0  # Loại bỏ obstacle nếu có
+            elif pos not in [self.start, self.goal] and pos not in self.targets:
+                self.targets.append(pos)
+                self.grid[row, col] = 0  
 
         self.draw_grid()
-
 
     def onkeypress(self, event):
         if event.key == 'enter':
@@ -184,7 +156,7 @@ class InteractiveMapEditor:
                 self.start = None
             self.draw_grid()
             
-        elif event.key == ' ':  # Space key
+        elif event.key == ' ':  
             if hasattr(self, 'current_env_type'):
                 print("🔄 Đang tạo lại môi trường...")
                 self.randomize(
@@ -237,16 +209,13 @@ class InteractiveMapEditor:
         print("␣ Space: Randomize environment")
         print("=" * 50)
         
-        # Hiển thị cửa sổ và đảm bảo nó ở trên cùng
         self.fig.canvas.manager.window.raise_()
         plt.show(block=True)
 
     def is_path_possible(self, start, goal, grid):
-        """Kiểm tra xem có đường đi từ start đến goal không (phiên bản tối ưu)"""
         if grid[start[0], start[1]] == 1 or grid[goal[0], goal[1]] == 1:
             return False
             
-        # Sử dụng BFS đơn giản hơn, chỉ kiểm tra 4 hướng
         visited = set()
         queue = [start]
         visited.add(start)
@@ -256,7 +225,6 @@ class InteractiveMapEditor:
             if current == goal:
                 return True
                 
-            # Chỉ kiểm tra 4 hướng cơ bản
             for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
                 next_x = current[0] + dx
                 next_y = current[1] + dy
@@ -269,40 +237,32 @@ class InteractiveMapEditor:
         return False
 
     def ensure_connectivity(self, grid):
-        """Đảm bảo môi trường có tính liên thông (phiên bản tối ưu)"""
-        # Tạo các lối đi ngẫu nhiên để đảm bảo tính liên thông
-        num_paths = int(self.height * self.width * 0.1)  # 10% số ô
+        num_paths = int(self.height * self.width * 0.1)  
         for _ in range(num_paths):
             x = np.random.randint(1, self.height-1)
             y = np.random.randint(1, self.width-1)
             if grid[x, y] == 1:
-                # Tạo lối đi 2x2
                 grid[x-1:x+1, y-1:y+1] = 0
         return grid
 
     def randomize(self, obstacle_prob=0.2, num_targets=1, env_type='default', num_clusters=None):
-        # Lưu các tham số hiện tại để có thể tạo lại môi trường
         self.current_obstacle_prob = obstacle_prob
         self.current_num_targets = num_targets
         self.current_env_type = env_type
         
-        # Thêm một bộ đếm để tránh vòng lặp vô tận nếu tham số quá khó
         attempts_count = 0
-        max_total_attempts = 100 # Đặt một giới hạn an toàn, có thể tăng nếu cần
+        max_total_attempts = 100 
 
-        # Sử dụng vòng lặp while True để lặp cho đến khi thành công
         while True:
             attempts_count += 1
-            # Kiểm tra giới hạn an toàn
             if attempts_count > max_total_attempts:
                 print(f"❌ KHÔNG THỂ TẠO BẢN ĐỒ HỢP LỆ sau {max_total_attempts} lần thử!")
                 print("Vui lòng giảm mật độ chướng ngại vật hoặc tăng kích thước bản đồ.")
-                # Vẽ một bản đồ trống để người dùng không bị kẹt với bản đồ lỗi
                 self.grid = np.zeros((self.height, self.width), dtype=int)
                 self.start = None
                 self.goal = None
                 self.targets = []
-                break # Thoát khỏi vòng lặp
+                break 
 
             self.grid = np.zeros((self.height, self.width), dtype=int)
 
@@ -381,13 +341,11 @@ class InteractiveMapEditor:
             else:
                 raise ValueError(f"Loại môi trường không hợp lệ: {env_type}")
 
-            # --- Logic for placing S/G/T and checking path connectivity ---
             free_cells = list(zip(*np.where(self.grid == 0)))
             np.random.shuffle(free_cells)
 
             required_free_cells = 2 + num_targets
             if len(free_cells) < required_free_cells:
-                # Không cần in ra console, chỉ cần thử lại
                 continue
 
             try:
@@ -399,51 +357,35 @@ class InteractiveMapEditor:
 
                 if valid_path_found:
                     print(f"✅ Đã tạo bản đồ hợp lệ sau {attempts_count} lần thử.")
-                    break # Thoát khỏi vòng lặp khi thành công
+                    break 
                 else:
-                    continue # Tiếp tục vòng lặp nếu chưa thành công
+                    continue 
 
             except IndexError:
-                # Không đủ ô trống, tiếp tục vòng lặp
                 continue
 
-    # Khi vòng lặp kết thúc (do thành công hoặc hết số lần thử), vẽ lại lưới
         self.draw_grid()
 
     def check_all_path_connectivity(self, grid, start, goal, targets):
-        """Checks connectivity from start to all targets, between all targets, and from targets to goal."""
         points_to_check = [start] + targets + [goal]
-        # Check connectivity between all pairs of (start, targets, goal)
-        # A more robust check for TSP would be needed for order, but this checks basic reachability.
-        
-        # Create a temporary grid for checking paths without modifying the main grid
         temp_grid = np.copy(grid)
 
-        # Check connectivity using the simple BFS (4 directions)
-        # Need to ensure is_path_possible handles targets correctly, currently it only checks S-G.
-        # Let's reuse is_path_possible but call it multiple times.
-
-        # Check Start to Goal
         if not self.is_path_possible(start, goal, temp_grid):
             return False
             
-        # Check Start to all Targets
         for target in targets:
             if not self.is_path_possible(start, target, temp_grid):
                 return False
 
-        # Check connectivity between all pairs of Targets (if more than one)
         for i in range(len(targets)):
             for j in range(i + 1, len(targets)):
                 if not self.is_path_possible(targets[i], targets[j], temp_grid):
                     return False
                     
-        # Check all Targets to Goal
         for target in targets:
             if not self.is_path_possible(target, goal, temp_grid):
                 return False
 
-        # If all checks pass
         return True
 
     def on_environment_type_changed(self, env_type):
@@ -454,7 +396,7 @@ class InteractiveMapEditor:
             self.obstacle_spin.show()
             self.obstacle_label.show()
             if env_type.lower() == "mountain":
-                self.obstacle_spin.setMaximum(0.3)  # Giới hạn tối đa 0.3
+                self.obstacle_spin.setMaximum(0.3)  
                 if self.obstacle_spin.value() > 0.3:
                     self.obstacle_spin.setValue(0.3)
             else:
