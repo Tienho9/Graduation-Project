@@ -23,18 +23,14 @@ def get_direction_priority(current, goal, grid, radius=2):
     # Tính độ chênh giữa goal và vị trí hiện tại
     dx = goal[0] - current[0]
     dy = goal[1] - current[1]
-
-    # Tính góc (theo độ) giữa hướng đi hiện tại và trục X
-    # Chú ý: trục Y bị đảo vì trong lưới thường y tăng xuống dưới
     angle = (math.degrees(math.atan2(-dy, dx)) + 360) % 360
 
-    # Định nghĩa 8 hướng đi
     all_directions = {
         'N': (-1, 0), 'NE': (-1, 1), 'E': (0, 1), 'SE': (1, 1),
         'S': (1, 0), 'SW': (1, -1), 'W': (0, -1), 'NW': (-1, -1)
     }
 
-    # Bảng quy tắc chọn 3 hướng theo từng góc (trường hợp không có vật cản)
+    # Bảng quy tắc chọn 3 hướng 
     direction_groups_3 = {
         (337.5, 360): ['NW', 'N', 'NE'], (0, 22.5): ['NW', 'N', 'NE'],
         (22.5, 67.5): ['N', 'NE', 'E'],
@@ -46,7 +42,7 @@ def get_direction_priority(current, goal, grid, radius=2):
         (292.5, 337.5): ['W', 'NW', 'N'],
     }
 
-    # Bảng quy tắc chọn 5 hướng nếu có ít vật cản
+    # Bảng quy tắc chọn 5 hướng 
     direction_groups_5 = {
         (337.5, 360): ['N', 'NE', 'E', 'W', 'NW'], (0, 22.5): ['N', 'NE', 'E', 'W', 'NW'],
         (22.5, 67.5): ['N', 'NE', 'E', 'SE', 'NW'],
@@ -74,18 +70,16 @@ def get_direction_priority(current, goal, grid, radius=2):
 
     # Chọn chiến lược mở rộng hướng đi dựa trên mật độ vật cản
     if obstacle_count == 0:
-        direction_set = direction_groups_3  # An toàn ➜ chỉ mở 3 hướng ưu tiên
+        direction_set = direction_groups_3  
     elif obstacle_count < 4:
-        direction_set = direction_groups_5  # Có vài vật cản ➜ mở rộng 5 hướng
+        direction_set = direction_groups_5  
     else:
-        return list(all_directions.values())  # Môi trường phức tạp ➜ mở đủ 8 hướng
+        return list(all_directions.values())  
 
     # Chọn hướng phù hợp theo góc angle
     for (start, end), names in direction_set.items():
         if start <= angle < end or (start > end and (angle >= start or angle < end)):
             return [all_directions[d] for d in names]
-
-    # Nếu không khớp vùng nào ➜ mở toàn bộ hướng (fallback)
     return list(all_directions.values())
 
 
@@ -203,17 +197,13 @@ def is_line_clear(p1, p2, grid):
         e2 = 2 * err
         moved_diag = False
         if e2 > -dy:
-            # Sắp di chuyển theo trục x
             if e2 < dx: 
-                # Nếu cũng sẽ di chuyển theo trục y -> đây là bước đi chéo
-                # Trước khi đi chéo, kiểm tra các góc
                 if not is_safe(grid, (x + sx, y)) or not is_safe(grid, (x, y + sy)):
                     return False
             err -= dy
             x += sx
         
         if e2 < dx:
-            # Di chuyển theo trục y
             err += dx
             y += sy
 
