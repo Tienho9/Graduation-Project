@@ -85,17 +85,28 @@ def astar_with_targets(grid, start, targets, goal, return_visited=False):
     visited_all = set()
     current = start
     points = targets + [goal]
-
-    for point in points:
+    target_order = []
+    for idx, point in enumerate(points):
         path, visited = astar(grid, current, point, return_visited=True)
         if path is None:
-            return (None, visited_all) if return_visited else None
+            if return_visited:
+                return None, visited_all, target_order
+            else:
+                return None
         if full_path:
             full_path += path[1:]
         else:
             full_path += path
         visited_all.update(visited)
+        if idx < len(targets):
+            # Lưu lại thứ tự index target đã đi qua
+            for t_idx, t in enumerate(targets):
+                if point == t:
+                    target_order.append(t_idx)
+                    break
         current = point
-
-    return (full_path, visited_all) if return_visited else full_path
+    if return_visited:
+        return full_path, visited_all, target_order
+    else:
+        return full_path
 
